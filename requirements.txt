@@ -2,7 +2,7 @@ openai>=1.0.0
 googlemaps>=4.10.0
 requests>=2.31.0
 python-dotenv>=1.0.0
-pocketflow>=0.1.0
+pocketflow
 torch>=2.0.0
 transformers>=4.0.0
 numpy>=1.22.0

@@ -45,7 +45,7 @@ DEFAULT_MODEL=asi1-mini
 Start the recommendation system with:
 
 ```bash
-python -m food_recommender_asi1.main
+python main.py
 ```
 
 When prompted, enter your restaurant preferences in natural language. For example:
