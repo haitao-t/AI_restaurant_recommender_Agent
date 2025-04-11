@@ -2,6 +2,10 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+<p align="center">
+  <img src="assets/rr.png" alt="Restaurant Recommender Logo" width="300"/>
+</p>
+
 An AI-powered agent designed to provide personalized restaurant recommendations based on user preferences, location, and in-depth analysis of user reviews using a specialized fine-tuned language model.
 
 ## Features
@@ -82,19 +86,33 @@ A key component is the fine-tuned model [`c0sm1c9/restaurant-review-analyzer-dut
     ```
 
 2.  **Create and activate a virtual environment:**
+    
+    **For macOS/Linux:**
     ```bash
     python3 -m venv venv
-    source venv/bin/activate  # On Windows use `venv\Scripts\activate`
+    source venv/bin/activate
+    ```
+    
+    **For Windows:**
+    ```bash
+    python -m venv venv
+    venv\Scripts\activate
     ```
 
 3.  **Install dependencies:**
     ```bash
     pip install -r requirements.txt
     ```
-    *(Note: Ensure `requirements.txt` includes libraries like `googlemaps`, `openai`, `requests`, `python-dotenv`, `ipinfo`, `torch`, `transformers`)*
+    *(Note: This will install required libraries including `googlemaps`, `openai`, `requests`, `python-dotenv`, `ipinfo`, `torch`, `transformers`)*
 
 4.  **Set up environment variables:**
-    Create a file named `.env` in the project root directory and add your API keys:
+    
+    Copy the example environment file and edit it with your API keys:
+    ```bash
+    cp .env.example .env
+    ```
+    
+    Then open `.env` in your preferred text editor and add your API keys:
     ```dotenv
     # .env file
     GOOGLE_MAPS_API_KEY="YOUR_GOOGLE_MAPS_API_KEY"
@@ -103,8 +121,10 @@ A key component is the fine-tuned model [`c0sm1c9/restaurant-review-analyzer-dut
     # Optional: Override default LLM model for general tasks
     # DEFAULT_LLM_MODEL="gpt-4o-mini"
     ```
-    *   Get a Google Maps API key from the [Google Cloud Console](https://console.cloud.google.com/apis/library/places-backend.googleapis.com). Ensure the Places API is enabled.
-    *   Get an OpenAI API key from the [OpenAI Platform](https://platform.openai.com/).
+    
+    **API Keys Setup:**
+    * Google Maps API key: Create or access from the [Google Cloud Console](https://console.cloud.google.com/apis/library/places-backend.googleapis.com). Make sure the Places API is enabled for your project.
+    * OpenAI API key: Generate from the [OpenAI Platform](https://platform.openai.com/) by creating an account and navigating to the API keys section.
 
 ## Usage
 
@@ -167,4 +187,4 @@ This project was developed by:
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-This project uses [PocketFlow](https://github.com/The-Pocket/PocketFlow), which is also licensed under the MIT License. 
+This project uses [PocketFlow](https://github.com/The-Pocket/PocketFlow), which is also licensed under the MIT License.
