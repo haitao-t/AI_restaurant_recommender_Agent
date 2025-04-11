@@ -1,5 +1,7 @@
 # AI Restaurant Recommender Agent
 
+> **Note:** For the UK AI AGENT HACKATHON, please see the [restaurant_recommender_asi1mini](https://github.com/haitao-t/AI_restaurant_recommender_Agent/tree/restaurant_recommender_asi1mini) branch for the hackathon submission version.
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 <p align="center">
