@@ -1,0 +1,12 @@
+openai>=1.0.0
+googlemaps>=4.10.0
+requests>=2.31.0
+python-dotenv>=1.0.0
+pocketflow>=0.1.0
+torch>=2.0.0
+transformers>=4.0.0
+numpy>=1.22.0
+json5>=0.9.0
+# PyYAML      # Useful for parsing LLM structured output if needed
+# accelerate  # Optional: for faster loading/inference on GPU
+# bitsandbytes  # Optional: for 8-bit quantization 
