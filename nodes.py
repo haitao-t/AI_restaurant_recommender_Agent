@@ -3,6 +3,7 @@ from pocketflow import Node, BatchNode
 import json
 import time
 import re
+import os
 
 # Import utility functions (assuming they are in the utils directory)
 from utils.google_maps_api import (
@@ -12,6 +13,8 @@ from utils.google_maps_api import (
     calculate_distance_to_restaurant
 )
 from utils.call_llm import call_llm, parse_user_query_llm
+# Import ACI.dev utility function
+from utils.aci_dev_agent import get_aci_agent_info, format_aci_section
 
 # Configure logging
 logging.basicConfig(
@@ -703,18 +706,50 @@ class GenerateResponseNode(Node):
         user_geolocation = shared.get("user_geolocation", {})
         user_location = user_geolocation.get("address", "Unknown location")
         
-        return user_query, ranked_recommendations, user_location
+        # Check if Flock agent has decided about Web3 information
+        include_web3 = shared.get("include_web3")
+        
+        # If no explicit decision, check if user is interested in Web3 information
+        if include_web3 is None:
+            user_query_str = str(user_query).lower() if user_query else ""
+            web3_interest = (
+                "crypto" in user_query_str or
+                "token" in user_query_str or 
+                "nft" in user_query_str or
+                "blockchain" in user_query_str or
+                "web3" in user_query_str
+            )
+            include_web3 = web3_interest
+            
+        # Check if user wants ACI.dev intelligent analysis
+        include_aci = shared.get("include_aci")
+        if include_aci is None:
+            user_query_str = str(user_query).lower() if user_query else ""
+            aci_interest = (
+                "ai" in user_query_str or
+                "intelligent" in user_query_str or
+                "smart" in user_query_str or
+                "deep analysis" in user_query_str or
+                "aci" in user_query_str
+            )
+            include_aci = aci_interest or True  # Default to True as we want to show ACI analysis by default
+        
+        return user_query, ranked_recommendations, user_location, include_web3, include_aci
         
     def exec(self, prep_res):
         """Generate the final response using call_llm or templates."""
-        user_query, ranked_recommendations, user_location = prep_res
+        user_query, ranked_recommendations, user_location, include_web3, include_aci = prep_res
+        
+        # Store include_web3 and include_aci decisions for template generation
+        self.include_web3 = include_web3
+        self.include_aci = include_aci
         
         if not ranked_recommendations:
             logger.warning("No recommendations to present in final response")
             return "I couldn't find any restaurants that match your criteria. Would you like to try different preferences?"
         
         try:
-            from utils.call_llm import call_llm
+            from utils import call_llm
             
             # 增强处理：确保每个餐厅记录都包含评分和用户优先事项
             for i, resto in enumerate(ranked_recommendations):
@@ -726,18 +761,35 @@ class GenerateResponseNode(Node):
                         if score is not None:
                             # 添加描述性文本
                             description = ""
-                            if dim == "Taste" and score >= 8.5:
-                                description = "(Exceptional)"
-                            elif dim == "Ambiance" and score >= 8.0:
-                                description = resto.get("ambiance_description", 
-                                                      "(Excellent Atmosphere)")
-                            elif dim == "Service" and score >= 8.0:
-                                description = "(Attentive)"
-                            elif dim == "Value" and score <= 6.0:
-                                description = "(Higher end)"
-                            elif dim == "Value" and score >= 8.0:
-                                description = "(Great value)"
-                                
+                            if dim == "Taste":
+                                if score >= 8.5:
+                                    description = " (Exceptional)"
+                                elif score >= 7.0:
+                                    description = " (Very Good)"
+                                elif score <= 4.0:
+                                    description = " (Subpar)"
+                            elif dim == "Service":
+                                if score >= 8.5:
+                                    description = " (Outstanding)"
+                                elif score >= 7.0:
+                                    description = " (Attentive)"
+                                elif score <= 4.0:
+                                    description = " (Poor)"
+                            elif dim == "Ambiance":
+                                if score >= 8.0:
+                                    description = " (Great Vibe)"
+                                elif score >= 6.0:
+                                    description = " (Good)"
+                                elif score <= 4.0:
+                                    description = " (Lacking)"
+                            elif dim == "Value":
+                                if score >= 8.0:
+                                    description = " (Excellent)"
+                                elif score >= 6.5:
+                                    description = " (Worth it)"
+                                elif score <= 4.0:
+                                    description = " (Overpriced)"
+                            
                             refined_scores[dim] = {
                                 "score": score,
                                 "description": description
@@ -753,8 +805,32 @@ class GenerateResponseNode(Node):
                     resto["matched_priorities"] = matched_priorities
                 
                 # 添加亮点标记
-                if "adjustment_reasons" in resto and resto["adjustment_reasons"]:
-                    resto["highlights"] = resto["adjustment_reasons"][:3]  # 最多使用前3个亮点
+                if not resto.get("adjustment_reasons"):
+                    # 基于分数自动生成亮点
+                    highlights = []
+                    scores = resto.get("scores", {})
+                    
+                    if "Taste" in scores and scores["Taste"] >= 8.5:
+                        highlights.append("Outstanding food")
+                    elif "Service" in scores and scores["Service"] >= 8.5:
+                        highlights.append("Exceptional service")
+                    elif "Ambiance" in scores and scores["Ambiance"] >= 8.5:
+                        highlights.append("Amazing atmosphere")
+                    elif "Value" in scores and scores["Value"] >= 8.5:
+                        highlights.append("Excellent value")
+                    
+                    # 如果有距离信息，也可以添加近距离亮点
+                    if "distance_info" in resto and resto["distance_info"].get("distance_km", 100) <= 2:
+                        highlights.append(f"Only {resto['distance_info'].get('distance_km', 0):.1f}km away")
+                    
+                    # 保存亮点
+                    if highlights:
+                        resto["adjustment_reasons"] = highlights
+                        
+                # Process ACI.dev information if available and requested
+                if include_aci and ("aci_summary" in resto or "aci_unique_features" in resto or "aci_recommendations" in resto):
+                    from utils.aci_dev_agent import format_aci_section
+                    resto["aci_section"] = format_aci_section(resto)
             
             # 首先使用模板生成响应以确保格式正确，不依赖LLM
             template_response = self._generate_template_response(ranked_recommendations[:3], user_query)
@@ -786,6 +862,16 @@ class GenerateResponseNode(Node):
             
     def _generate_template_response(self, recommendations, user_query):
         """Generate a basic response if the LLM call fails."""
+        # Extract if Web3 info should be included
+        include_web3 = False
+        if hasattr(self, 'include_web3'):
+            include_web3 = self.include_web3
+            
+        # Extract if ACI info should be included
+        include_aci = True
+        if hasattr(self, 'include_aci'):
+            include_aci = self.include_aci
+        
         # 提取用户查询中的关键信息
         location = "Unknown"
         cuisine = "food"
@@ -842,11 +928,34 @@ class GenerateResponseNode(Node):
                     if score is not None:
                         # 添加描述性文本
                         description = ""
-                        if dim == "Ambiance":
+                        if dim == "Taste":
+                            if score >= 8.5:
+                                description = " (Exceptional)"
+                            elif score >= 7.0:
+                                description = " (Very Good)"
+                            elif score <= 4.0:
+                                description = " (Subpar)"
+                        elif dim == "Service":
+                            if score >= 8.5:
+                                description = " (Outstanding)"
+                            elif score >= 7.0:
+                                description = " (Attentive)"
+                            elif score <= 4.0:
+                                description = " (Poor)"
+                        elif dim == "Ambiance":
                             if score >= 8.0:
                                 description = " (Great Vibe)"
                             elif score >= 6.0:
                                 description = " (Good)"
+                            elif score <= 4.0:
+                                description = " (Lacking)"
+                        elif dim == "Value":
+                            if score >= 8.0:
+                                description = " (Excellent)"
+                            elif score >= 6.5:
+                                description = " (Worth it)"
+                            elif score <= 4.0:
+                                description = " (Overpriced)"
                         
                         score_text = f"{dim}: {score:.1f} ⭐{description}"
                     else:
@@ -877,6 +986,37 @@ class GenerateResponseNode(Node):
                     summary = "Solid option with unique character."
                 response += f"**{name}**: {summary}\n"
             
+            # Add Web3 information for each restaurant if available
+            try:
+                from utils.call_flock_agent import format_web3_section
+                
+                # Check if Web3 info should be included
+                if include_web3:
+                    # Check if any restaurant has Web3 features
+                    any_web3_features = any(
+                        r.get("accepts_crypto", False) or 
+                        r.get("has_token_program", False) or 
+                        r.get("has_nft_rewards", False) 
+                        for r in recommendations[:3]
+                    )
+                    
+                    if any_web3_features:
+                        response += "\n### Web3 Features:\n\n"
+                        for i, r in enumerate(recommendations[:3]):
+                            name = r.get("name", f"Restaurant {i+1}")
+                            web3_section = format_web3_section(r)
+                            
+                            if web3_section:
+                                # Remove the "### Web3 Features" header since we've already added it
+                                if web3_section.startswith("### Web3 Features"):
+                                    web3_section = web3_section[len("### Web3 Features"):].strip()
+                                response += f"**{name}**:\n{web3_section}\n\n"
+                            else:
+                                response += f"**{name}**: No Web3 features available\n\n"
+            except Exception as e:
+                logger.error(f"Error formatting Web3 information: {e}", exc_info=True)
+                # Continue without Web3 info if there's an error
+            
             # 添加最终建议
             response += f"\nBased on this, **{recommendations[0].get('name', 'the first option')}** seems the closest match, with **{recommendations[1].get('name', 'the second option')}** as a strong alternative. What do you think?"
         
@@ -888,7 +1028,8 @@ class GenerateResponseNode(Node):
                 rating = resto.get("rating", "N/A")
                 fit_score = resto.get("fit_score", 0)
                 
-                response += f"**{i+1}. {name}** (Fit Score: {fit_score:.1f}/10)\n"
+                # Basic summary line
+                response += f"**{i+1}. {name}** | Fit: {fit_score:.1f}/10\n"
                 response += f"   - Address: {address}\n"
                 response += f"   - Rating: {rating}/5\n"
                 
@@ -896,6 +1037,23 @@ class GenerateResponseNode(Node):
                 if "scores" in resto:
                     score_text = ", ".join([f"{k}: {v:.1f}⭐" for k, v in resto["scores"].items() if v is not None])
                     response += f"   - Scores: {score_text}\n"
+                
+                # Add Web3 information if available
+                try:
+                    from utils.call_flock_agent import format_web3_section
+                    
+                    # Only include Web3 info if requested
+                    if include_web3:
+                        web3_section = format_web3_section(resto)
+                        if web3_section:
+                            # Remove the header and format for list view
+                            if web3_section.startswith("### Web3 Features"):
+                                web3_section = web3_section[len("### Web3 Features"):].strip()
+                                # Indent each line
+                                web3_section = "   - Web3: " + web3_section.replace("\n", "\n     ")
+                                response += f"{web3_section}\n"
+                except Exception as e:
+                    logger.error(f"Error formatting Web3 information for list view: {e}", exc_info=True)
                 
                 response += "\n"
         
@@ -906,8 +1064,22 @@ class GenerateResponseNode(Node):
             exec_res = "I'm sorry, I couldn't generate restaurant recommendations at this time. Please try again with different criteria."
             
         shared["final_response"] = exec_res
-        logger.info("Stored final recommendation response.")
-        return "default" # End the flow
+        logger.info("Generated final response.")
+        
+        # Check if there's reservation intent in the ranked restaurants
+        reservation_needed = False
+        top_restaurant = None
+        
+        ranked_recommendations = shared.get("ranked_recommendations", [])
+        if ranked_recommendations:
+            top_restaurant = ranked_recommendations[0]
+            reservation_needed = shared.get("user_reservation_intent", False)
+        
+        if reservation_needed and top_restaurant:
+            logger.info(f"User indicated reservation intent. Suggesting reservation for {top_restaurant.get('name')}")
+            return "make_reservation"
+        else:
+            return "default"
 
 
 class NoCandidatesFoundNode(Node):
@@ -1153,6 +1325,14 @@ class DecideActionNode(Node):
                     "question": {"type": "string", "description": "The specific question to ask the user."}
                 }, "required": ["question"]}
             }},
+            {"type": "function", "function": {
+                "name": "include_web3_information",
+                "description": "Include Web3-related information (cryptocurrency payments, token-based loyalty programs, NFT rewards) in restaurant recommendations. Use this if the user expresses interest in Web3 features or restaurants might have such features based on their type, location, or other characteristics.",
+                "parameters": {"type": "object", "properties": {
+                    "include_web3": {"type": "boolean", "description": "Whether to include Web3 information in the recommendations."},
+                    "reason": {"type": "string", "description": "Reason for including or not including Web3 information."}
+                }, "required": ["include_web3"]}
+            }}
             # Optional: Add more tools like presenting a basic list if needed
             # {"type": "function", "function": {
             #     "name": "present_basic_list",
@@ -1172,6 +1352,40 @@ class DecideActionNode(Node):
         candidates = shared.get("candidate_restaurants", [])
         reviews_data = shared.get("reviews_data", {})
 
+        # Check if user query might be interested in Web3 features
+        user_query_str = str(user_query).lower() if user_query else ""
+        web3_keywords = ["crypto", "cryptocurrency", "bitcoin", "ethereum", "token", "nft", 
+                         "blockchain", "web3", "digital currency", "digital payment"]
+        
+        web3_interest = any(keyword in user_query_str for keyword in web3_keywords)
+        
+        # Check if any restaurant might have Web3 features based on their type or location
+        tech_focused_areas = ["silicon valley", "san francisco", "tokyo", "seoul", "singapore", 
+                             "new york", "london", "berlin", "amsterdam", "tel aviv"]
+        
+        tech_restaurant_keywords = ["tech", "digital", "future", "innovative", "modern",
+                                   "crypto", "token", "nft", "blockchain", "web3"]
+        
+        restaurant_types = []
+        for c in candidates:
+            if c.get("types"):
+                restaurant_types.extend(c.get("types", []))
+            
+            # Check restaurant name for tech keywords
+            name = c.get("name", "").lower()
+            for keyword in tech_restaurant_keywords:
+                if keyword in name:
+                    restaurant_types.append(keyword)
+                    
+            # Check location for tech-focused areas
+            address = c.get("formatted_address", c.get("vicinity", "")).lower()
+            for area in tech_focused_areas:
+                if area in address:
+                    restaurant_types.append("tech_area")
+                    break
+        
+        restaurant_types = list(set(restaurant_types))  # Remove duplicates
+
         # Construct a context string
         context_lines = [f"User Query: {user_query}"]
         context_lines.append(f"Parsed Preferences: {json.dumps(parsed_query)}")
@@ -1180,6 +1394,10 @@ class DecideActionNode(Node):
             # Check if reviews are available for candidates
             reviews_available_count = sum(1 for c in candidates if reviews_data.get(c.get('id')))
             context_lines.append(f"Reviews available for {reviews_available_count} of them.")
+            context_lines.append(f"Restaurant types/categories: {restaurant_types}")
+            
+            if web3_interest:
+                context_lines.append("User query contains Web3-related keywords, suggesting interest in cryptocurrency payments, token programs, or NFT rewards.")
         else:
             context_lines.append("No restaurant candidates found yet.")
 
@@ -1187,22 +1405,40 @@ class DecideActionNode(Node):
         context = "\n".join(context_lines)
 
         logger.debug(f"Prepared context for Flock agent:\n{context}")
-        return context
+        return context, self.available_tools
 
-    def exec(self, context):
+    def exec(self, prep_res):
         """Call the Flock agent utility to get the next action decision."""
-        logger.info("Skipping Flock agent and defaulting to analyze action...")
+        context, tools = prep_res
         
-        # Return a hardcoded analyze action instead of calling the Flock agent
+        try:
+            # Import here to avoid circular imports
+            from utils.call_flock_agent import decide_next_action_with_flock
+            
+            # Call the Flock agent to decide the next action
+            logger.info("Calling Flock agent to decide next action...")
+            chosen_action = decide_next_action_with_flock(context, tools)
+            
+            if chosen_action:
+                logger.info(f"Flock agent decided action: {chosen_action['name']}")
+                return chosen_action
+            else:
+                logger.warning("Flock agent failed to decide an action, defaulting to analyze_restaurant_reviews")
+        except Exception as e:
+            logger.error(f"Error calling Flock agent: {e}", exc_info=True)
+            
+        # Fallback if Flock agent fails
+        logger.info("Using fallback analysis action...")
+        
         # Structure matching what the Flock agent would return
-        chosen_action = {
+        fallback_action = {
             "name": "analyze_restaurant_reviews",
             "arguments": {
                 "restaurant_ids": []  # Empty list as we're analyzing all restaurants
             }
         }
         
-        return chosen_action # Return the dictionary {"name": ..., "arguments": ...}
+        return fallback_action
 
     def post(self, shared, prep_res, exec_res):
         """Determine the flow action based on Flock's decision."""
@@ -1219,9 +1455,135 @@ class DecideActionNode(Node):
         elif action_name == "ask_user_clarification":
             shared["clarification_question"] = arguments.get("question", "Could you please provide more details?")
             return "clarify"
+        elif action_name == "include_web3_information":
+            # Store the decision about Web3 information in the shared store
+            shared["include_web3"] = arguments.get("include_web3", False)
+            shared["web3_inclusion_reason"] = arguments.get("reason", "")
+            logger.info(f"Decision to include Web3 info: {shared['include_web3']}, Reason: {shared['web3_inclusion_reason']}")
+            
+            # This action doesn't change the flow path, just sets a flag for later
+            return "analyze"
         # elif action_name == "present_basic_list":
         #     return "list_only"
         else:
             logger.warning(f"Unknown action decided by Flock agent: {action_name}. Defaulting to analyze.")
             # Fallback: If Flock hallucinates a function name, maybe try analyzing anyway?
             return "analyze" # Or maybe an error action 
+
+
+class AciDevInfoNode(Node):
+    """Enriches restaurant data with information from ACI.dev Agent."""
+    
+    def __init__(self, max_retries=2, wait=5):
+        super().__init__(max_retries=max_retries, wait=wait)
+    
+    def prep(self, shared):
+        candidates = shared.get("candidate_restaurants", [])
+        if not candidates:
+            logger.warning("No candidates to enrich with ACI.dev information. Skipping.")
+            return None  # Signal to exec to do nothing
+        return candidates
+    
+    def exec(self, candidates):
+        if candidates is None:
+            return []
+        
+        logger.info(f"Enriching {len(candidates)} restaurants with ACI.dev information...")
+        
+        # Call ACI.dev API to enrich restaurant data
+        enriched_candidates = get_aci_agent_info(candidates)
+        
+        return enriched_candidates
+    
+    def post(self, shared, prep_res, exec_res):
+        # Update the candidate restaurants with enriched data
+        shared["candidate_restaurants"] = exec_res
+        logger.info(f"Updated {len(exec_res)} restaurants with ACI.dev information.")
+        return "default"
+
+
+class EnrichWeb3InfoNode(Node):
+    """Enriches restaurant data with Web3-related information using the Flock model or OpenAI."""
+    
+    def __init__(self, max_retries=2, wait=5):
+        super().__init__(max_retries=max_retries, wait=wait)
+        # 配置从环境变量加载
+        self.max_restaurants = int(os.getenv("WEB3_MAX_RESTAURANTS", "5"))
+        self.request_timeout = int(os.getenv("WEB3_REQUEST_TIMEOUT", "10"))
+        self.always_add_web3 = os.getenv("ALWAYS_ADD_WEB3_INFO", "false").lower() == "true"
+    
+    def prep(self, shared):
+        candidates = shared.get("candidate_restaurants", [])
+        # Check if there's web3 interest in the query
+        user_query = shared.get("user_query", "").lower()
+        parsed_query = shared.get("parsed_query", {})
+        
+        web3_keywords = ["crypto", "cryptocurrency", "bitcoin", "ethereum", "token", "nft", 
+                         "blockchain", "web3", "digital currency", "digital payment"]
+        web3_interest = any(keyword in user_query for keyword in web3_keywords)
+        
+        # Store web3 interest in shared for later use
+        shared["include_web3"] = web3_interest
+        
+        if not candidates:
+            logger.warning("No candidates to enrich with Web3 information. Skipping.")
+            return None  # Signal to exec to do nothing
+            
+        # 如果候选餐厅数量超过限制，记录日志
+        if len(candidates) > self.max_restaurants:
+            logger.info(f"Large number of candidate restaurants ({len(candidates)}), will limit Web3 processing to {self.max_restaurants}")
+            
+        # 1. 如果查询明确包含Web3相关关键词，则处理
+        # 2. 如果配置了始终添加Web3信息，则处理
+        # 3. 否则跳过处理
+        if web3_interest:
+            logger.info(f"Web3 interest detected in query: '{user_query}'. Processing Web3 information.")
+            return candidates
+        elif self.always_add_web3:
+            logger.info("ALWAYS_ADD_WEB3_INFO is enabled. Processing Web3 information despite no explicit interest.")
+            return candidates
+        else:
+            logger.info("No Web3 interest detected in query and ALWAYS_ADD_WEB3_INFO is disabled. Skipping Web3 enrichment.")
+            return None
+            
+    def exec(self, candidates):
+        if candidates is None:
+            return []
+        
+        total_candidates = len(candidates)
+        logger.info(f"Enriching restaurants with Web3 information. Found {total_candidates} candidates.")
+        
+        # Import here to avoid circular imports
+        from utils.call_flock_agent import get_restaurant_web3_info
+        
+        # 添加计时，记录性能情况
+        start_time = time.time()
+        
+        try:
+            # 使用配置的参数调用
+            enriched_candidates = get_restaurant_web3_info(
+                candidates, 
+                max_restaurants=self.max_restaurants, 
+                timeout=self.request_timeout
+            )
+            
+            elapsed = time.time() - start_time
+            logger.info(f"Web3 enrichment completed in {elapsed:.2f} seconds")
+            return enriched_candidates
+            
+        except Exception as e:
+            elapsed = time.time() - start_time
+            logger.error(f"Error in Web3 enrichment after {elapsed:.2f} seconds: {e}", exc_info=True)
+            # 错误时返回原始列表，保留原始结构
+            return candidates
+    
+    def post(self, shared, prep_res, exec_res):
+        # If we didn't process anything (no Web3 interest), just continue
+        if prep_res is None or not exec_res:
+            return "default"
+            
+        # Update the candidate restaurants with enriched data
+        shared["candidate_restaurants"] = exec_res
+        enriched_count = sum(1 for r in exec_res if r.get("accepts_crypto") or r.get("has_token_program") or r.get("has_nft_rewards"))
+        logger.info(f"Updated {len(exec_res)} restaurants with Web3 information. Found {enriched_count} with Web3 features.")
+        return "default" 

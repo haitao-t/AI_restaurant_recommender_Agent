@@ -20,16 +20,33 @@ if not GOOGLE_MAPS_API_KEY:
      missing_vars.append("GOOGLE_MAPS_API_KEY")
 
 if missing_vars:
-    print(f"Error: Required environment variable(s) not set: {', '.join(missing_vars)}", file=sys.stderr)
-    print("Please create a .env file based on .env.example and fill in the values.", file=sys.stderr)
+    print(f"Error: Required environment variable(s) not set: {', '.join(missing_vars)}")
+    print("Please create a .env file based on .env.example and fill in the values.")
     sys.exit(1)
 
 # Now that env vars are loaded and checked, import the flows
 from conversation_flow import create_conversation_flow
 
 # Configure basic logging AFTER potentially loading logging config from env vars (if any)
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__) # Define the logger instance
+log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+logs_dir = os.environ.get("LOGS_DIR", "logs")
+
+# Create logs directory if it doesn't exist
+if not os.path.exists(logs_dir):
+    os.makedirs(logs_dir)
+
+# Configure file and console logging
+numeric_level = getattr(logging, log_level, logging.INFO)
+logging.basicConfig(
+    level=numeric_level,
+    format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
+    handlers=[
+        logging.FileHandler(f"{logs_dir}/app.log"),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+
+logger = logging.getLogger(__name__)
 
 def run_conversational_recommendation():
     """
@@ -102,8 +119,17 @@ def run_conversational_recommendation():
 
 def main():
     """Main function to run the conversational agent."""
-    print("Conversational Food Recommendation Agent")
-    print("---------------------------------------")
+    # Print banner with version information
+    print("\n" + "="*60)
+    print("Restaurant Recommendation System")
+    print("An LLM-powered conversational agent for finding restaurants")
+    print("="*60)
+    print("Features:")
+    print("• Conversational interface for restaurant discovery")
+    print("• Analysis of reviews for personalized recommendations")
+    print("• Web3 information for crypto/token/NFT features")
+    print("• Enhanced information via AI-powered web search")
+    print("="*60)
     print("(Press Ctrl+C to exit at any time)")
     print()
 

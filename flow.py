@@ -5,9 +5,15 @@ from nodes import (
     DecideActionNode,
     AnalyzeRestaurantReviewsNode, CalculateFitScoreNode, GenerateResponseNode,
     NoCandidatesFoundNode, ReservationNode,
+    # Add the AciDevInfoNode
+    AciDevInfoNode,
+    # Add EnrichWeb3InfoNode for Web3 information
+    EnrichWeb3InfoNode,
     # Add placeholder nodes for other actions if needed
     # AskClarificationNode, PresentBasicListNode
 )
+# Import the Flock Agent utilities for Web3 information
+from utils.call_flock_agent import get_restaurant_web3_info
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -23,6 +29,8 @@ def create_recommendation_flow():
     fetch_reviews = FetchReviewsNode()
     decide_action = DecideActionNode()
     analyze_reviews = AnalyzeRestaurantReviewsNode() # Retries configured in Node class
+    aci_dev_info = AciDevInfoNode() # Node for enriching with ACI.dev data
+    web3_info = EnrichWeb3InfoNode() # Node for enriching with Web3 data
     calculate_fit = CalculateFitScoreNode()
     generate_response = GenerateResponseNode()
     no_candidates_node = NoCandidatesFoundNode() # Node for handling no results
@@ -31,7 +39,11 @@ def create_recommendation_flow():
     # 2. Define flow connections (happy path)
     parse_query >> find_restaurants
     find_restaurants >> fetch_reviews
-    fetch_reviews >> decide_action
+    # Add ACI.dev node after fetch_reviews
+    fetch_reviews >> aci_dev_info
+    # Add Web3 node after ACI.dev node
+    aci_dev_info >> web3_info
+    web3_info >> decide_action
 
     # 3. Define branches based on Flock agent's decision
     decide_action - "analyze" >> analyze_reviews
