@@ -2,7 +2,7 @@
 
 # Optionally, you can import key utility functions here for easier access
 from .google_maps_api import find_restaurants, get_reviews_for_restaurant
-from .call_finetuned_analyzer import analyze_reviews_with_finetuned_model
+from .call_finetuned_analyzer import analyze_reviews_with_finetuned_model, get_review_scores
 # Import the call_llm module itself, not specific functions from it
 from . import call_llm
 

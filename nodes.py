@@ -64,77 +64,90 @@ class ParseUserQueryNode(Node):
         return parsed_data
 
     def _fallback_extraction(self, user_query, user_location):
-        """Fallback method to extract basic info when LLM parsing fails"""
-        logger.info("Using fallback extraction for query parsing")
-        # Extract basic information from the user query directly - very basic parsing
-        words = user_query.lower().split()
+        """Enhanced fallback method to extract information using LLM when primary parsing fails"""
+        logger.info("Using LLM fallback extraction for query parsing")
         
-        # Default location detection - look for "in" followed by a word
-        location = None
-        import re
-        location_pattern = r'\bin\s+([a-zA-Z\s]+?)[,\.]'
-        location_match = re.search(location_pattern, user_query)
-        if location_match:
-            location = location_match.group(1).strip()
-        
-        # Default cuisine detection - look for common cuisine words
-        cuisine = []
-        common_cuisines = ["italian", "chinese", "japanese", "mexican", "thai", "indian", "french", "vietnamese", "korean"]
-        for cuisine_type in common_cuisines:
-            if cuisine_type in user_query.lower():
-                cuisine.append(cuisine_type.capitalize())
-        
-        # Default dietary preferences detection
-        dietary_prefs = []
-        common_dietary = ["vegetarian", "vegan", "gluten-free", "halal", "kosher", "dairy-free", "nut-free"]
-        for diet in common_dietary:
-            if diet in user_query.lower():
-                dietary_prefs.append(diet.capitalize())
-        
-        # Default group size detection - look for numbers followed by "people" or similar words
-        group_size = None
-        group_pattern = r'(\d+)\s*(?:people|persons|friends|guests|group)'
-        group_match = re.search(group_pattern, user_query.lower())
-        if group_match:
-            group_size = int(group_match.group(1))
-        
-        # Time detection
-        time_pattern = r'(\d{1,2})(?::(\d{2}))?\s*(?:am|pm|AM|PM)?'
-        time_match = re.search(time_pattern, user_query)
-        time = None
-        if time_match:
-            time = time_match.group(0)
+        try:
+            from utils import call_llm
             
-        # Budget detection
-        budget_pp = None
-        budget_pattern = r'(\d+)\s*(?:dollars|pounds|euros|gbp|usd|eur|\$|£|€)'
-        budget_match = re.search(budget_pattern, user_query.lower())
-        if budget_match:
-            budget_pp = int(budget_match.group(1))
+            # Create a comprehensive prompt for the LLM to extract all query details
+            prompt = f"""
+Extract structured information from this restaurant search query:
+
+USER QUERY: "{user_query}"
+
+USER'S CURRENT LOCATION: {user_location.get('address', 'Unknown')}
+
+Extract each of these aspects if mentioned in the query:
+- location: Specific neighborhood or area where the user wants to find restaurants
+- cuisine: Type of food or cuisine requested (e.g., Italian, Chinese, Thai)
+- budget_pp: Price per person in numeric form only (e.g., 30, 50, 100)
+- vibe: Atmosphere or ambiance (e.g., romantic, casual, upscale)
+- priorities: Important aspects to the user (Taste, Service, Ambiance, Value, etc.)
+- dietary_preferences: Any dietary restrictions mentioned (vegetarian, vegan, gluten-free, etc.)
+- group_size: Number of people in the party
+- time: Dining time mentioned (in format HH:MM or specifications like "dinner", "lunch")
+
+Return ONLY a valid JSON object with these fields (use null for missing information):
+{
+  "location": "extracted location or null",
+  "cuisine": ["Cuisine1", "Cuisine2"] or "Cuisine" or null,
+  "budget_pp": number or null,
+  "vibe": "extracted vibe or null",
+  "priorities": ["Priority1", "Priority2"] or null,
+  "dietary_preferences": ["Preference1", "Preference2"] or null,
+  "group_size": number or null,
+  "time": "extracted time or null"
+}
+"""
+            # Call LLM to extract the information
+            response = call_llm.call_llm(prompt, model="gpt-4o-mini")
+            
+            if response:
+                try:
+                    # Extract and parse JSON response
+                    start_idx = response.find("{")
+                    end_idx = response.rfind("}")
+                    
+                    if start_idx >= 0 and end_idx >= 0:
+                        json_str = response[start_idx:end_idx+1]
+                        extracted_data = json.loads(json_str)
+                        
+                        # Handle potential null values and ensure structure consistency
+                        for key in ["location", "cuisine", "budget_pp", "vibe", "priorities", 
+                                   "dietary_preferences", "group_size", "time"]:
+                            if key not in extracted_data or extracted_data[key] is None:
+                                if key in ["priorities", "dietary_preferences"]:
+                                    extracted_data[key] = []
+                                else:
+                                    extracted_data[key] = None
+                                    
+                        # Ensure location defaults to user's neighborhood if not extracted
+                        if not extracted_data["location"] and user_location.get('neighborhood'):
+                            extracted_data["location"] = user_location.get('neighborhood')
+                            logger.info(f"Using user's neighborhood as location: {extracted_data['location']}")
+                            
+                        logger.info(f"LLM fallback extraction successful: {extracted_data}")
+                        return extracted_data
+                        
+                except Exception as json_error:
+                    logger.error(f"Error parsing LLM fallback response: {json_error}. Response: {response}")
         
-        # Set defaults - use user's geolocation if no specific location found
-        parsed_data = {
-            "location": location if location else user_location.get('neighborhood', "Soho"),
-            "cuisine": cuisine if cuisine else None,
-            "budget_pp": budget_pp,
+        except Exception as e:
+            logger.error(f"Error in LLM fallback extraction: {e}", exc_info=True)
+            
+        # Ultimate fallback with minimal extraction if LLM fails
+        logger.warning("LLM fallback failed, using minimal extraction")
+        return {
+            "location": user_location.get('neighborhood', "Unknown"),
+            "cuisine": None,
+            "budget_pp": None,
             "vibe": None,
             "priorities": [],
-            "dietary_preferences": dietary_prefs,
-            "group_size": group_size,
-            "time": time
+            "dietary_preferences": [],
+            "group_size": None,
+            "time": None
         }
-        
-        # Try to detect priorities
-        if "ambiance" in user_query.lower() or "atmosphere" in user_query.lower():
-            parsed_data["priorities"].append("Ambiance")
-        if "service" in user_query.lower():
-            parsed_data["priorities"].append("Service")
-        if "taste" in user_query.lower() or "food" in user_query.lower():
-            parsed_data["priorities"].append("Taste")
-        if "value" in user_query.lower() or "price" in user_query.lower() or "budget" in user_query.lower():
-            parsed_data["priorities"].append("Value")
-            
-        return parsed_data
 
     def post(self, shared, prep_res, exec_res):
         shared["parsed_query"] = exec_res
@@ -219,6 +232,70 @@ class FindRestaurantsNode(Node):
                 # Add distance info to the candidate
                 candidate['distance_info'] = distance_info
         
+        # If we have dietary preferences, use LLM to determine if restaurant likely accommodates them
+        if dietary_preferences:
+            from utils import call_llm
+            
+            # Gather all relevant information about the restaurant
+            restaurant_info = {}
+            for key in ["name", "types", "business_status", "formatted_address", "vicinity"]:
+                if key in candidate:
+                    restaurant_info[key] = candidate[key]
+            
+            # Include any additional fields that might help determine dietary accommodations
+            if "editorial_summary" in candidate:
+                restaurant_info["editorial_summary"] = candidate["editorial_summary"]
+            
+            # Create a prompt for the LLM to analyze if the restaurant accommodates the dietary preferences
+            prompt = f"""
+Analyze if this restaurant is likely to accommodate these dietary preferences:
+{dietary_preferences}
+
+RESTAURANT INFORMATION:
+{json.dumps(restaurant_info, indent=2)}
+
+Consider:
+1. Restaurant name (may include terms like "vegan", "vegetarian", etc.)
+2. Restaurant types/categories
+3. Location (some areas have more accommodating restaurants)
+4. Any other relevant information in the data
+
+Return ONLY a JSON object with a single boolean field "accommodates":
+{{
+  "accommodates": true/false,
+  "confidence": "high"/"medium"/"low",
+  "reasoning": "Brief explanation of your reasoning"
+}}
+"""
+            try:
+                response = call_llm.call_llm(prompt, model="gpt-4o-mini")
+                
+                if response:
+                    # Extract and parse the JSON response
+                    start_idx = response.find("{")
+                    end_idx = response.rfind("}")
+                    
+                    if start_idx >= 0 and end_idx >= 0:
+                        json_str = response[start_idx:end_idx+1]
+                        dietary_analysis = json.loads(json_str)
+                        
+                        if "accommodates" in dietary_analysis:
+                            candidate["accommodates_dietary_preferences"] = dietary_analysis["accommodates"]
+                            candidate["dietary_confidence"] = dietary_analysis.get("confidence", "medium")
+                            candidate["dietary_reasoning"] = dietary_analysis.get("reasoning", "")
+                            
+                            logger.info(f"LLM dietary analysis for {candidate.get('name')}: {dietary_analysis['accommodates']} ({dietary_analysis.get('confidence', 'medium')})")
+                        else:
+                            # Default to not accommodating if LLM response doesn't include the field
+                            candidate["accommodates_dietary_preferences"] = False
+                    else:
+                        candidate["accommodates_dietary_preferences"] = False
+                else:
+                    candidate["accommodates_dietary_preferences"] = False
+            except Exception as e:
+                logger.error(f"Error in LLM dietary analysis: {e}")
+                candidate["accommodates_dietary_preferences"] = False
+        
         return candidates, dietary_preferences, user_geolocation
 
     def post(self, shared, prep_res, exec_res):
@@ -238,38 +315,6 @@ class FindRestaurantsNode(Node):
                     if details:
                         # Merge the details with the candidate info
                         candidate.update(details)
-                        
-                        # If we have dietary preferences, mark whether restaurant is likely to accommodate
-                        if dietary_preferences:
-                            # Extract business description, categories, reviews etc. to evaluate dietary match
-                            text_to_check = ""
-                            if "name" in candidate:
-                                text_to_check += candidate["name"].lower() + " "
-                            if "types" in candidate:
-                                text_to_check += " ".join(candidate.get("types", [])).lower() + " "
-                                
-                            # Check if restaurant potentially accommodates dietary preferences
-                            accommodates_diet = False
-                            diet_keywords = {
-                                "vegetarian": ["vegetarian", "veggie"],
-                                "vegan": ["vegan", "plant-based", "plant based"],
-                                "gluten-free": ["gluten-free", "gluten free", "gf"],
-                                "halal": ["halal"],
-                                "kosher": ["kosher"],
-                                "dairy-free": ["dairy-free", "dairy free", "no dairy"],
-                                "nut-free": ["nut-free", "nut free", "no nuts"]
-                            }
-                            
-                            for diet in dietary_preferences:
-                                diet_lower = diet.lower()
-                                if diet_lower in diet_keywords:
-                                    for keyword in diet_keywords[diet_lower]:
-                                        if keyword in text_to_check:
-                                            accommodates_diet = True
-                                            break
-                            
-                            candidate["accommodates_dietary_preferences"] = accommodates_diet
-                        
                         detailed_candidates.append(candidate)
             
             # If dietary preferences were specified, prioritize restaurants that accommodate them
@@ -327,7 +372,7 @@ class AnalyzeReviewsBatchNode(BatchNode):
         # Set retry parameters for the fine-tuned model calls
         super().__init__(max_retries=2, wait=5, *args, **kwargs)
         self.cur_retry = 0  # Initialize cur_retry attribute
-
+    
     def prep(self, shared):
         reviews_data = shared.get("reviews_data")
         if not reviews_data:
@@ -355,46 +400,89 @@ class AnalyzeReviewsBatchNode(BatchNode):
         return items_to_process
 
     def _extract_relevant_dimensions(self, user_query, parsed_query):
-        """Extract dimensions that matter to the user based on their query."""
-        # Start with default dimensions that are always included
-        default_dimensions = ["Taste", "Service", "Ambiance", "Value"]
+        """Extract dimensions that matter to the user based on their query using LLM."""
+        # Core dimensions as fallback
+        core_dimensions = ["Taste", "Service", "Ambiance"]
         
-        # 添加空值检查，确保priorities是可迭代的
+        # Validate priorities from parsed query
         priorities = parsed_query.get("priorities", [])
         if priorities is None:
             priorities = []
             logger.warning("Found None priorities in parsed_query, defaulting to empty list")
         
-        # Add dimensions mentioned in user priorities
+        try:
+            # Use LLM to extract dimensions directly from user input
+            from utils import call_llm
+            
+            # Construct a prompt that asks the LLM to identify relevant dimensions
+            prompt = f"""
+Analyze the following user restaurant query to identify which dining aspects (dimensions) the user cares about.
+
+USER QUERY: {user_query}
+
+Core dimensions include:
+- Taste: Food quality, flavor, culinary experience
+- Service: Staff behavior, attentiveness, professionalism
+- Ambiance: Interior atmosphere, decor, vibe, comfort
+
+Additional dimensions could include (but are not limited to):
+- Noise: Sound level, quietness, acoustic comfort
+- Cleanliness: Hygiene, tidiness, overall cleanliness
+- Authenticity: How authentic or traditional the cuisine is
+- Portion Size: Food quantity, serving size
+- Decor: Interior design, aesthetics, visual appeal
+- Accessibility: Wheelchair access, accommodations for disabilities
+- Kid-friendly: Suitability for children, family-friendliness
+- Parking: Parking availability, convenience
+- Vegetarian/Vegan Options: Plant-based menu availability
+- Outdoor Seating: Patio, terrace, garden options
+- And any other dimension you can identify from the query
+
+Based ONLY on this query, return a JSON array of dimension names that seem relevant to this user.
+Include the core dimensions ONLY if they appear to be specifically important to this user.
+
+RETURN ONLY a valid JSON array with dimension names, like:
+["Taste", "Ambiance", "Noise"]
+"""
+            
+            # Call LLM to extract dimensions
+            response = call_llm.call_llm(prompt, model="gpt-4o-mini")
+            
+            if response:
+                # Parse the response to extract dimensions
+                # Handle potential JSON formatting issues
+                try:
+                    # Extract JSON array from response
+                    start_idx = response.find("[")
+                    end_idx = response.rfind("]")
+                    
+                    if start_idx >= 0 and end_idx >= 0:
+                        json_str = response[start_idx:end_idx+1]
+                        extracted_dimensions = json.loads(json_str)
+                        
+                        # Validate that we got a list
+                        if isinstance(extracted_dimensions, list):
+                            # Add any explicitly mentioned priorities that might have been missed
+                            for priority in priorities:
+                                if priority not in extracted_dimensions:
+                                    extracted_dimensions.append(priority)
+                                    
+                            logger.info(f"LLM extracted dimensions from user query: {extracted_dimensions}")
+                            return extracted_dimensions
+                except Exception as json_error:
+                    logger.error(f"Error parsing LLM dimensions response: {json_error}. Response: {response}")
+        
+        except Exception as e:
+            logger.error(f"Error using LLM to extract dimensions: {e}", exc_info=True)
+        
+        # Fallback: If LLM extraction failed, use priorities + core dimensions
+        fallback_dimensions = core_dimensions.copy()
         for priority in priorities:
-            if priority not in default_dimensions:
-                default_dimensions.append(priority)
-        
-        # Additional dimensions based on keywords in query
-        dimension_keywords = {
-            "Waiting": ["wait", "queue", "line", "waiting time", "fast", "quick", "slow"],
-            "Noise": ["noise", "quiet", "loud", "peaceful", "atmosphere", "ambient", "loud", "sound"],
-            "Cleanliness": ["clean", "hygiene", "sanitary", "tidy", "spotless"],
-            "Authenticity": ["authentic", "traditional", "original", "genuine"],
-            "Portion": ["portion", "serving", "amount", "quantity", "size"],
-            "Decor": ["decor", "interior", "design", "aesthetic", "beautiful", "layout"],
-            "Accessibility": ["accessible", "wheelchair", "disability", "access"],
-            "Kid-friendly": ["kids", "children", "family", "kid", "child"],
-            "Parking": ["parking", "park", "car", "valet"],
-            "Vegetarian": ["vegetarian", "vegan", "plant", "veggie"],
-            "Outdoor": ["outdoor", "patio", "terrace", "garden", "outside", "alfresco"],
-        }
-        
-        # Check for dimension keywords in user query
-        query_lower = user_query.lower()
-        for dimension, keywords in dimension_keywords.items():
-            for keyword in keywords:
-                if keyword in query_lower and dimension not in default_dimensions:
-                    default_dimensions.append(dimension)
-                    break
-        
-        logger.info(f"Extracted dimensions based on user input: {default_dimensions}")
-        return default_dimensions
+            if priority not in fallback_dimensions:
+                fallback_dimensions.append(priority)
+                
+        logger.warning(f"Using fallback dimension extraction: {fallback_dimensions}")
+        return fallback_dimensions
 
     def exec(self, item):
         """Called once per restaurant in the batch."""
@@ -407,21 +495,16 @@ class AnalyzeReviewsBatchNode(BatchNode):
         # If the user only needs the three basic dimensions, use the fine-tuned model
         if set(dimensions).issubset(set(finetuned_model_dimensions + ["Value"])):
             try:
-                # Import the fine-tuned model analyzer
-                from utils import analyze_reviews_with_finetuned_model
+                # Import the review analysis functions
+                from utils import get_review_scores
                 
-                logger.info(f"Using fine-tuned model for {resto_id} - dimensions {dimensions} can be covered by model")
+                logger.info(f"Using fine-tuned model for {resto_id} with requested dimensions: {dimensions}")
                 
-                # Call the fine-tuned model
-                finetuned_scores = analyze_reviews_with_finetuned_model(resto_id, reviews)
+                # Call the review scores function with the specific dimensions needed
+                finetuned_scores = get_review_scores(resto_id, reviews, dimensions)
                 
                 if finetuned_scores and isinstance(finetuned_scores, dict):
-                    # Add Value if needed but not provided by fine-tuned model
-                    if "Value" in dimensions and "Value" not in finetuned_scores:
-                        # Derive Value from Taste and Service
-                        if "Taste" in finetuned_scores and "Service" in finetuned_scores:
-                            finetuned_scores["Value"] = round((finetuned_scores["Taste"] + finetuned_scores["Service"]) / 2, 1)
-                    
+                    # 不再自动计算Value维度
                     logger.info(f"Successfully got scores from fine-tuned model for {resto_id} (10-point scale): {finetuned_scores}")
                     return {"id": resto_id, "scores_1_10": finetuned_scores}
                 else:
@@ -471,7 +554,32 @@ If a dimension cannot be evaluated from the reviews, assign a value of null for 
             
             # Attempt to parse the JSON response
             try:
-                scores_1_10 = json.loads(response_text)
+                # Check if the response is wrapped in markdown code blocks and extract just the JSON
+                if "```json" in response_text and "```" in response_text:
+                    # Extract content between markdown json code markers
+                    start_idx = response_text.find("```json") + 7
+                    end_idx = response_text.find("```", start_idx)
+                    if start_idx > 6 and end_idx > start_idx:  # Valid markers found
+                        json_str = response_text[start_idx:end_idx].strip()
+                        logger.info(f"Extracted JSON from markdown code block for {resto_id}")
+                    else:
+                        # Fallback to regular JSON search
+                        start_idx = response_text.find("{")
+                        end_idx = response_text.rfind("}")
+                        if start_idx >= 0 and end_idx >= 0:
+                            json_str = response_text[start_idx:end_idx+1]
+                        else:
+                            raise ValueError("Could not locate valid JSON in response")
+                else:
+                    # Regular JSON extraction
+                    start_idx = response_text.find("{")
+                    end_idx = response_text.rfind("}")
+                    if start_idx >= 0 and end_idx >= 0:
+                        json_str = response_text[start_idx:end_idx+1]
+                    else:
+                        raise ValueError("Could not locate valid JSON in response")
+                
+                scores_1_10 = json.loads(json_str)
                 
                 # Basic validation
                 if not isinstance(scores_1_10, dict):
@@ -491,15 +599,18 @@ If a dimension cannot be evaluated from the reviews, assign a value of null for 
             except json.JSONDecodeError:
                 logger.error(f"Failed to decode JSON response from LLM for {resto_id}: {response_text}")
                 raise ValueError("LLM did not return valid JSON.")
-
+            except Exception as e:
+                logger.error(f"Error parsing LLM response for {resto_id}: {e}")
+                raise ValueError(f"Failed to parse LLM response: {e}")
+                
+            # Return the restaurant ID along with its 1-10 scores
+            return {"id": resto_id, "scores_1_10": scores_1_10}
+            
         except Exception as e:
-            # Catch errors from the LLM call itself or parsing/validation
+            # Catch errors from the LLM call itself or from raising exceptions in the inner try block
             logger.error(f"Error during LLM review analysis for {resto_id}: {e}")
             # Raise an exception to trigger retry or fallback based on Node config
             raise ConnectionError(f"General LLM API failed or returned invalid data for {resto_id}") from e
-            
-        # Return the restaurant ID along with its 1-10 scores
-        return {"id": resto_id, "scores_1_10": scores_1_10}
 
     def post(self, shared, prep_res, exec_res_list):
         """Collects results from all successful batch executions."""
@@ -716,7 +827,9 @@ class CalculateFitScoreNode(Node):
         return ranked_restaurants
 
     def post(self, shared, prep_res, exec_res):
+        # Store ranked recommendations in shared state
         shared["ranked_recommendations"] = exec_res
+        
         logger.info(f"Ranked {len(exec_res)} restaurants based on fit scoring.")
         return "default"
 
@@ -754,25 +867,43 @@ class GenerateResponseNode(Node):
                             # 添加描述性文本
                             description = ""
                             if dim == "Taste":
-                                if score >= 8.5:
+                                if score >= 7.0:
                                     description = " (Exceptional)"
-                                elif score >= 7.0:
+                                elif score >= 6.0:
+                                    description = " (Excellent)"
+                                elif score >= 5.0:
                                     description = " (Very Good)"
-                                elif score <= 4.0:
-                                    description = " (Subpar)"
+                                elif score >= 4.0:
+                                    description = " (Good)"
+                                elif score >= 3.0:
+                                    description = " (Average)"
+                                else:
+                                    description = " (Needs Improvement)"
                             elif dim == "Service":
-                                if score >= 8.5:
+                                if score >= 7.0:
                                     description = " (Outstanding)"
-                                elif score >= 7.0:
+                                elif score >= 6.0:
+                                    description = " (Excellent)"
+                                elif score >= 5.0:
                                     description = " (Attentive)"
-                                elif score <= 4.0:
+                                elif score >= 4.0:
+                                    description = " (Satisfactory)"
+                                elif score >= 3.0:
+                                    description = " (Inconsistent)"
+                                else:
                                     description = " (Poor)"
                             elif dim == "Ambiance":
-                                if score >= 8.0:
-                                    description = " (Great Vibe)"
+                                if score >= 7.0:
+                                    description = " (Spectacular)"
                                 elif score >= 6.0:
-                                    description = " (Good)"
-                                elif score <= 4.0:
+                                    description = " (Great Vibe)"
+                                elif score >= 5.0:
+                                    description = " (Pleasant)"
+                                elif score >= 4.0:
+                                    description = " (Acceptable)"
+                                elif score >= 3.0:
+                                    description = " (Basic)"
+                                else:
                                     description = " (Lacking)"
                             elif dim == "Value":
                                 if score >= 8.0:
@@ -781,7 +912,7 @@ class GenerateResponseNode(Node):
                                     description = " (Worth it)"
                                 elif score <= 4.0:
                                     description = " (Overpriced)"
-                            
+                                
                             refined_scores[dim] = {
                                 "score": score,
                                 "description": description
@@ -796,7 +927,7 @@ class GenerateResponseNode(Node):
                             matched_priorities.append(priority)
                     resto["matched_priorities"] = matched_priorities
                 
-                # 添加亮点标记
+                # 添加亮点行
                 if "adjustment_reasons" in resto and resto["adjustment_reasons"]:
                     resto["highlights"] = resto["adjustment_reasons"][:3]  # 最多使用前3个亮点
             
@@ -878,7 +1009,7 @@ class GenerateResponseNode(Node):
             response += f"{fit_scores[0]}  {fit_scores[1]}  {fit_scores[2]}\n\n"
             
             # 各维度分数
-            dimensions = ["Taste", "Service", "Ambiance", "Value"]
+            dimensions = ["Taste", "Service", "Ambiance"]
             for dim in dimensions:
                 dim_scores = []
                 for r in recommendations[:3]:
@@ -887,33 +1018,44 @@ class GenerateResponseNode(Node):
                         # 添加描述性文本
                         description = ""
                         if dim == "Taste":
-                            if score >= 8.5:
+                            if score >= 7.0:
                                 description = " (Exceptional)"
-                            elif score >= 7.0:
+                            elif score >= 6.0:
+                                description = " (Excellent)"
+                            elif score >= 5.0:
                                 description = " (Very Good)"
-                            elif score <= 4.0:
-                                description = " (Subpar)"
+                            elif score >= 4.0:
+                                description = " (Good)"
+                            elif score >= 3.0:
+                                description = " (Average)"
+                            else:
+                                description = " (Needs Improvement)"
                         elif dim == "Service":
-                            if score >= 8.5:
+                            if score >= 7.0:
                                 description = " (Outstanding)"
-                            elif score >= 7.0:
+                            elif score >= 6.0:
+                                description = " (Excellent)"
+                            elif score >= 5.0:
                                 description = " (Attentive)"
-                            elif score <= 4.0:
+                            elif score >= 4.0:
+                                description = " (Satisfactory)"
+                            elif score >= 3.0:
+                                description = " (Inconsistent)"
+                            else:
                                 description = " (Poor)"
                         elif dim == "Ambiance":
-                            if score >= 8.0:
-                                description = " (Great Vibe)"
+                            if score >= 7.0:
+                                description = " (Spectacular)"
                             elif score >= 6.0:
-                                description = " (Good)"
-                            elif score <= 4.0:
+                                description = " (Great Vibe)"
+                            elif score >= 5.0:
+                                description = " (Pleasant)"
+                            elif score >= 4.0:
+                                description = " (Acceptable)"
+                            elif score >= 3.0:
+                                description = " (Basic)"
+                            else:
                                 description = " (Lacking)"
-                        elif dim == "Value":
-                            if score >= 8.0:
-                                description = " (Excellent)"
-                            elif score >= 6.5:
-                                description = " (Worth it)"
-                            elif score <= 4.0:
-                                description = " (Overpriced)"
                         
                         score_text = f"{dim}: {score:.1f} ⭐{description}"
                     else:
@@ -924,10 +1066,38 @@ class GenerateResponseNode(Node):
             # 添加亮点行
             highlights = []
             for r in recommendations[:3]:
-                if r.get("adjustment_reasons"):
+                if r.get("highlights"):
+                    highlight = "✅ " + r["highlights"][0]
+                elif r.get("adjustment_reasons"):
                     highlight = "✅ " + r["adjustment_reasons"][0]
+                elif "scores" in r:
+                    # 根据评分生成特色亮点
+                    scores = r.get("scores", {})
+                    max_score_dim = None
+                    max_score = 0
+                    for dim, score in scores.items():
+                        if score is not None and score > max_score:
+                            max_score = score
+                            max_score_dim = dim
+                            
+                    if max_score_dim == "Taste":
+                        highlight = "🔥 Exceptional Taste"
+                    elif max_score_dim == "Service":
+                        highlight = "👨‍🍳 Outstanding Service"
+                    elif max_score_dim == "Ambiance":
+                        highlight = "✨ Great Atmosphere"
+                    else:
+                        highlight = "👍 Solid Overall"
                 else:
-                    highlight = "✅ Good Choice"
+                    # 随机生成不同的亮点，避免全都是"Good Choice"
+                    options = [
+                        "👍 Popular Choice", 
+                        "⭐ Well Rated", 
+                        "🍽️ Good Dining Experience",
+                        "🧑‍🤝‍🧑 Customer Favorite"
+                    ]
+                    import random
+                    highlight = random.choice(options)
                 highlights.append(pad_text(highlight))
             response += f"\n{highlights[0]}  {highlights[1]}  {highlights[2]}\n"
             

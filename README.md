@@ -16,7 +16,7 @@ An AI-powered agent designed to provide personalized restaurant recommendations 
     *   Fetches up-to-date user reviews for candidate restaurants.
     *   Detects the user's current physical location (via IP geolocation) for distance/travel time calculations.
     *   Retrieves opening hours and status.
-*   **Fine-tuned Review Analysis:** Utilizes a custom fine-tuned model ([`c0sm1c9/restaurant-review-analyzer-dutch`](https://huggingface.co/c0sm1c9/restaurant-review-analyzer-dutch)) to analyze reviews and assign scores (1-10) for key dimensions: **Taste**, **Service**, and **Ambiance**.
+*   **Fine-tuned Review Analysis:** Utilizes a custom fine-tuned model ([`c0sm1c9/restaurant-review-analyzer-dutch`](https://huggingface.co/c0sm1c9/restaurant-review-analyzer-dutch)) to analyze reviews and assign scores (2-7) for key dimensions: **Taste**, **Service**, and **Ambiance**.
 *   **Personalized Fit Score:** Calculates a weighted "Fit Score" (0-10) for each restaurant based on how well its dimensional scores align with the user's stated priorities.
 *   **Structured Output:** Presents recommendations in a clear Markdown format, including:
     *   A comparison table with dimensional scores, fit scores, distance, price level, and review counts.
@@ -53,7 +53,7 @@ graph LR
 *   **Language:** Python 3.x
 *   **LLMs:**
     *   General Purpose LLM (e.g., OpenAI GPT-4o-mini) for query parsing and response generation (via `utils/call_llm.py`).
-*   **Review Analysis:** Local execution of a fine-tuned model using Hugging Face `transformers` and `torch` (via `utils/analyze_reviews.py` or similar).
+*   **Review Analysis:** Local execution of a fine-tuned model using Hugging Face `transformers` and `torch` (via `utils/call_finetuned_analyzer.py`).
 *   **APIs:** Google Maps Places API
 *   **Libraries:** `transformers`, `torch`, `googlemaps`, `openai`, `requests`, `python-dotenv`, `ipinfo`
 
@@ -63,8 +63,15 @@ A key component is the fine-tuned model [`c0sm1c9/restaurant-review-analyzer-dut
 
 *   **Base Model:** XLM-RoBERTa-Base
 *   **Task:** Multi-head regression trained primarily on Dutch restaurant reviews.
-*   **Output:** Predicts scores (1-10) for **Taste**, **Service**, and **Ambiance**.
-*   **Integration:** The agent loads and runs this model **locally** using the Hugging Face `transformers` library and a custom Python class defined within the project (similar to the usage example on the model's Hugging Face page). This requires installing the `transformers` and `torch` libraries. Model weights might be downloaded automatically by the library on first run or may need to be present in the repository/cache.
+*   **Output:** Predicts scores (2-7) for **Taste**, **Service**, and **Ambiance**.
+*   **Scoring System:** The system implements an optimized scoring algorithm that ensures restaurant ratings have meaningful differentiation between dimensions and restaurants, avoiding the common problem of uniformly high scores.
+*   **Integration:** The agent loads and runs this model **locally** using the Hugging Face `transformers` library and a custom Python class defined within the project. This requires installing the `transformers` and `torch` libraries.
+
+### Recent Updates
+
+* **Enhanced Scores Differentiation:** Optimized the scoring system to provide more distinctive and realistic ratings
+* **Improved Visual Presentation:** Added more meaningful descriptions for different rating levels and distinctive highlights for restaurants
+* **Simplified Architecture:** Removed unused dependencies and features to create a more streamlined experience
 
 ## Getting Started
 
@@ -151,7 +158,7 @@ The agent will process the request through the defined workflow and output a Mar
     *   Name
     *   Distance/Travel Time (from your current location)
     *   Price Level
-    *   Dimensional Scores (Taste, Service, Ambiance) with star emojis (⭐)
+    *   Dimensional Scores (Taste, Service, Ambiance) with descriptive ratings
     *   Calculated Fit Score
     *   Review Count Analyzed
     *   Opening Hours / Status
@@ -172,7 +179,7 @@ The agent will process the request through the defined workflow and output a Mar
 └── utils/
     ├── __init__.py
     ├── call_llm.py     # Utilities for calling the general LLM (OpenAI)
-    ├── analyze_reviews.py # Utility for loading and running the local fine-tuned model
+    ├── call_finetuned_analyzer.py # Utility for loading and running the local fine-tuned model
     └── google_maps_api.py # Utilities for interacting with Google Maps API
 ```
 

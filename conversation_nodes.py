@@ -10,10 +10,10 @@ logger = logging.getLogger(__name__)
 
 class ConversationManagerNode(Node):
     """Manages multi-turn conversation and extracts relevant information."""
-    
+
     def __init__(self, *args, **kwargs):
         super().__init__(max_retries=2, wait=3, *args, **kwargs)
-        
+    
     def prep(self, shared):
         """Prepare context for the conversation manager."""
         # Get user input and current conversation state
@@ -461,17 +461,17 @@ Keep it very conversational and brief (1-2 sentences).
         regex_budget = None
         is_for_now = None
         dining_date = None
-        currency_type = "GBP"  # 默认使用英镑作为货币单位
+        currency_type = "GBP"  # Default to GBP
         
         try:
-            # 检测货币类型
+            # Detect currency type
             currency_patterns = [
-                (r'\$', "USD"),  # 美元符号
-                (r'£', "GBP"),   # 英镑符号
-                (r'€', "EUR"),   # 欧元符号
-                (r'\bUSD\b|\bdollars?\b|\bUS\s+dollars?\b', "USD"),   # 美元关键词
-                (r'\bGBP\b|\bpounds?\b|\bUK\s+pounds?\b', "GBP"),     # 英镑关键词
-                (r'\bEUR\b|\beuros?\b', "EUR")    # 欧元关键词
+                (r'\$', "USD"),  # Dollar symbol
+                (r'£', "GBP"),   # Pound symbol
+                (r'€', "EUR"),   # Euro symbol
+                (r'\bUSD\b|\bdollars?\b|\bUS\s+dollars?\b', "USD"),   # Dollar keywords
+                (r'\bGBP\b|\bpounds?\b|\bUK\s+pounds?\b', "GBP"),     # Pound keywords
+                (r'\bEUR\b|\beuros?\b', "EUR")    # Euro keywords
             ]
             
             for pattern, curr_code in currency_patterns:
@@ -480,7 +480,7 @@ Keep it very conversational and brief (1-2 sentences).
                     logger.info(f"Detected currency type: {currency_type}")
                     break
             
-            # 检测是否是"现在"就餐
+            # Check if dining is for "now"
             now_patterns = [
                 r'\b(?:now|right now|immediately|立刻|现在|马上)\b',
                 r'\b(?:tonight|today|this evening|今晚|今天|今天晚上)\b',
@@ -493,15 +493,15 @@ Keep it very conversational and brief (1-2 sentences).
                     logger.info("Detected dining request for current time")
                     break
             
-            # 尝试提取具体时间
-            # 标准时间格式 HH:MM
+            # Try to extract specific time
+            # Standard time format HH:MM
             time_pattern = r'(\d{1,2}):(\d{2})(?:\s*(?:am|pm|AM|PM))?'
-            # 简单时间格式 X点/X点半/X点Y分
+            # Simple time format X点/X点半/X点Y分
             simple_time_pattern = r'(\d{1,2})\s*(?:点|时|:|：)(?:\s*(\d{1,2}))?(?:\s*(?:分|半))?'
-            # 相对时间表达 X小时后
+            # Relative time format X hours later
             relative_time_pattern = r'(\d+)\s*(?:小时|hour|hr)[s]?\s*(?:后|later|from now)'
             
-            # 先检查标准时间格式
+            # Check standard time format first
             time_match = re.search(time_pattern, user_input)
             if time_match:
                 hour = int(time_match.group(1))
@@ -510,7 +510,7 @@ Keep it very conversational and brief (1-2 sentences).
                 logger.info(f"Extracted standard time format: {regex_time}")
                 is_for_now = False
             
-            # 检查简单时间格式
+            # Check simple time format
             if not regex_time:
                 simple_match = re.search(simple_time_pattern, user_input)
                 if simple_match:
@@ -525,7 +525,7 @@ Keep it very conversational and brief (1-2 sentences).
                     logger.info(f"Extracted simple time format: {regex_time}")
                     is_for_now = False
             
-            # 检查相对时间
+            # Check relative time
             if not regex_time:
                 relative_match = re.search(relative_time_pattern, user_input)
                 if relative_match:
@@ -536,13 +536,13 @@ Keep it very conversational and brief (1-2 sentences).
                     logger.info(f"Calculated relative time {hours_later} hours from now: {regex_time}")
                     is_for_now = False
                     
-            # 尝试提取日期
+            # Try to extract date
             date_patterns = [
-                # 明天/后天
+                # Tomorrow/day after tomorrow
                 r'(明天|tomorrow|后天|day after tomorrow)',
-                # 星期几
+                # Day of the week
                 r'(周|星期|週|week|星期日|星期天|Sunday|周日|週日|星期一|Monday|周一|週一|星期二|Tuesday|周二|週二|星期三|Wednesday|周三|週三|星期四|Thursday|周四|週四|星期五|Friday|周五|週五|星期六|Saturday|周六|週六)',
-                # MM/DD 或 MM-DD
+                # MM/DD or MM-DD
                 r'(\d{1,2})[/-](\d{1,2})',
                 # MM月DD日
                 r'(\d{1,2})月(\d{1,2})日'
@@ -552,8 +552,7 @@ Keep it very conversational and brief (1-2 sentences).
                 date_match = re.search(pattern, user_input)
                 if date_match:
                     date_text = date_match.group(0)
-                    # 这里可以进一步处理日期转换为标准格式
-                    # 简单处理示例
+                    # Process date into standard format
                     if "明天" in date_text or "tomorrow" in date_text.lower():
                         tomorrow = datetime.datetime.now() + datetime.timedelta(days=1)
                         dining_date = tomorrow.strftime("%Y-%m-%d")
@@ -561,12 +560,12 @@ Keep it very conversational and brief (1-2 sentences).
                         day_after = datetime.datetime.now() + datetime.timedelta(days=2)
                         dining_date = day_after.strftime("%Y-%m-%d")
                     else:
-                        # 对于其他日期匹配，至少记录下来
+                        # For other date matches, at least record it
                         dining_date = date_text
                         
                     logger.info(f"Extracted dining date: {dining_date}")
                     break
-            
+                
             # Check for preference removal patterns
             removal_patterns = [
                 # General negations
@@ -618,7 +617,7 @@ Keep it very conversational and brief (1-2 sentences).
                                         removed_preferences["priorities"].append(priority.capitalize())
                                         logger.info(f"Removed priority: {priority.capitalize()}")
             
-            # Use regex first for key patterns to have backup values
+            # Use regex for key patterns to have backup values
             # First, try regex extraction for common patterns
             # Location extraction (e.g., "in Soho")
             location_pattern = r'\bin\s+([a-zA-Z\s]+?)(?:[,\.]|$|\s\d)'
@@ -662,7 +661,7 @@ Keep it very conversational and brief (1-2 sentences).
                 regex_budget = int(budget_match.group(1))
                 logger.info(f"Extracted budget from input using pattern '{budget_pattern}': {regex_budget}")
                 
-                # 同时尝试确定货币类型
+                # Also try to determine currency type
                 budget_full_match = budget_match.group(0).lower()
                 if "$" in budget_full_match or "dollar" in budget_full_match or "usd" in budget_full_match:
                     currency_type = "USD"
@@ -781,7 +780,7 @@ Return JSON format:
                             # Add currency type if not present
                             if not extracted.get("currency_type"):
                                 extracted["currency_type"] = currency_type
-                            
+                                
                             # If we detected removals via regex, add them to the LLM extraction
                             if removal_detected:
                                 # Add the removed preferences to the LLM results

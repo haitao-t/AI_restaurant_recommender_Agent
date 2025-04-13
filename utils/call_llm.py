@@ -376,7 +376,6 @@ Create a visual comparison of restaurants in this EXACT format:
 | Taste: 4.5 ⭐       | Taste: 4.4 ⭐       | Taste: 4.9 ⭐       |
 | Service: 4.6 ⭐     | Service: 4.3 ⭐     | Service: 4.2 ⭐     |
 | Ambiance: 4.5 ⭐ (Good Chat Vibe) | Ambiance: 4.3 ⭐ (Lively/Buzzy) | Ambiance: 4.0 ⭐ (Unique/Busy) |
-| Value: ~Ok (Higher end) | Value: Good     | Value: Good         |
 | ✅ Service, ✅ Convo Vibe; ⚠️ Top of Budget | ✅ Lively Vibe, ✅ Good All-Round | 🔥 Top Taste!; Setting unique, queues possible |
 
 ### Quick Summary:
@@ -424,7 +423,6 @@ Fit: [8.8]/10                Fit: [8.2]/10                Fit: [7.5]/10
 Taste: [4.5] ⭐              Taste: [4.4] ⭐              Taste: [4.9] ⭐
 Service: [4.6] ⭐            Service: [4.3] ⭐            Service: [4.2] ⭐
 Ambiance: [4.5] ⭐ (Good)    Ambiance: [4.3] ⭐ (Lively)  Ambiance: [4.0] ⭐ (Unique)
-Value: ~Ok (Higher end)      Value: Good                  Value: Good
 
 ✅ [Priority1], ✅ [Priority2]  ✅ [Priority1], ✅ [Priority2]  🔥 [Exceptional feature]
 ⚠️ [Warning if applicable]     ⚠️ [Warning if applicable]     ⚠️ [Warning if applicable]
