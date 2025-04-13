@@ -174,4 +174,57 @@ DEFAULT_MODEL=gpt-4o-mini
 - Fixed review processing to handle both string and dictionary formats.
 - Improved error handling for API failures.
 - Better user experience with formatted restaurant recommendations.
-- Corrected various indentation issues identified by linters. 
+- Corrected various indentation issues identified by linters.
+
+# Potential Business Models for AI Restaurant Recommender
+
+The core value proposition of this application lies in providing **highly detailed, personalized, and deeply analyzed restaurant recommendations** that surpass traditional star ratings, addressing user pain points regarding information overload and rating simplicity. Based on this value, several business models can be considered:
+
+## 1. Direct-to-Consumer (B2C) Models
+
+* **Freemium/Subscription Model:**
+  * Offer basic recommendation features for free to attract a user base.
+  * Charge a recurring fee (monthly/annually) for premium features such as:
+    * Advanced personalization (e.g., recommendations based on historical preferences).
+    * Unlimited "deep analysis" requests.
+    * Highly specific filters (e.g., "quiet corners for business," "allergy-friendly options").
+    * Integrated booking capabilities.
+    * Ad-free experience.
+* **One-Time Purchase (Premium App):**
+  * Offer a paid "Pro" version containing all premium features. (Less common for apps requiring continuous data updates).
+
+## 2. Business-to-Business/Business-to-Consumer (B2B/B2B2C) Models - Targeting Restaurants/Merchants
+
+* **Premium Listings & Enhanced Profiles:**
+  * Restaurants pay for richer profile pages (e.g., full menus, high-quality photos, direct booking links).
+  * Offer sponsored placements in search results for highly relevant user queries (must be clearly labeled as "Sponsored" or "Promoted" to maintain user trust).
+* **Data Analytics & Insights Dashboard (SaaS):**
+  * Sell restaurants detailed analytical reports based on LLM analysis of their customer reviews. Provide insights into specific aspects like service details, dish feedback, and ambiance perception. This offers valuable business intelligence for operational improvements.
+* **Booking Commissions:**
+  * Integrate with online booking systems (e.g., OpenTable, Resy, or proprietary systems). Charge restaurants a commission fee for each booking completed through the app.
+* **Targeted Promotions & Offers:**
+  * Allow restaurants to push customized promotions or coupons specifically to users whose search criteria closely match the restaurant's offerings (e.g., a user searching for "romantic Italian with vegetarian options" might receive a relevant offer).
+
+## 3. Technology Licensing & API Services (B2B)
+
+* **API Licensing:**
+  * License the fine-tuned review analysis LLM or the entire agent-based recommendation engine via API to other platforms (e.g., map services, review sites, travel portals, booking platforms). Charge based on API call volume or a recurring license fee.
+* **White-Label Solution:**
+  * Offer the complete application and technology stack as a white-label product for large restaurant chains, hospitality groups, or regional food platforms to operate under their own brand.
+
+## 4. Advertising & Affiliate Marketing
+
+* **Relevant Advertising:**
+  * Display highly relevant and non-intrusive ads within the user journey (e.g., ads for nearby bars after a restaurant recommendation, ride-sharing service ads). Requires careful implementation to avoid degrading the user experience.
+* **Affiliate Partnerships:**
+  * Partner with complementary services (e.g., food delivery, taxi services). Earn commissions when users book these services via links within the app after finding a restaurant.
+
+## Summary & Recommendation
+
+A **hybrid approach** is likely most effective:
+* Use a **freemium model** to build a large user base.
+* Monetize through **user subscriptions** for premium features and convenience.
+* Focus heavily on **B2B offerings**, particularly the unique **data analytics dashboard** for restaurants and targeted promotions.
+* Explore **API licensing** to scale the technology's reach.
+
+The key is to balance monetization with user experience, maintaining transparency, especially regarding sponsored content, to leverage the core competitive advantage: the quality and intelligence of the recommendations.
