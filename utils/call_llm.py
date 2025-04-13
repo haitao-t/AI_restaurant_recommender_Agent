@@ -364,19 +364,32 @@ TOP RECOMMENDED RESTAURANTS (already ranked):
 
         prompt += f"""
 FORMAT YOUR RESPONSE:
-Create a visual comparison of restaurants in this EXACT format:
+Create a comparison of restaurants in this EXACT format:
 
 "Okay [name from query], I've analyzed recent feedback for top restaurants in [location] based on your preferences for [occasion]: [cuisine type], [key priorities], [vibe type], [budget range]. Here's a structured recommendation to simplify your decision:
 
 ### [Location] Restaurant Analysis (Based on Your Specific Needs):
 
-| [Restaurant 1 Name] | [Restaurant 2 Name] | [Restaurant 3 Name] |
-|---------------------|---------------------|---------------------|
-| **Fit: 8.8/10**     | **Fit: 8.2/10**     | **Fit: 7.5/10**     |
-| Taste: 4.5 ⭐       | Taste: 4.4 ⭐       | Taste: 4.9 ⭐       |
-| Service: 4.6 ⭐     | Service: 4.3 ⭐     | Service: 4.2 ⭐     |
-| Ambiance: 4.5 ⭐ (Good Chat Vibe) | Ambiance: 4.3 ⭐ (Lively/Buzzy) | Ambiance: 4.0 ⭐ (Unique/Busy) |
-| ✅ Service, ✅ Convo Vibe; ⚠️ Top of Budget | ✅ Lively Vibe, ✅ Good All-Round | 🔥 Top Taste!; Setting unique, queues possible |
+**1. [Restaurant 1 Name]** ([Cuisine Type]) - **Fit: 8.8/10**
+- Taste: 8.5/10 (Very Good)
+- Service: 9.0/10 (Excellent)
+- Ambiance: 8.5/10 (Good Chat Vibe)
+- ✅ Service, ✅ Good for Conversation
+- Price Level: $$$
+
+**2. [Restaurant 2 Name]** ([Cuisine Type]) - **Fit: 8.2/10**
+- Taste: 8.4/10 (Good)
+- Service: 8.3/10 (Good)
+- Ambiance: 8.3/10 (Lively)
+- ✅ Lively Vibe, ✅ Good Value
+- Price Level: $$$
+
+**3. [Restaurant 3 Name]** ([Cuisine Type]) - **Fit: 7.5/10**
+- Taste: 8.9/10 (Excellent)
+- Service: 8.2/10 (Good)
+- Ambiance: 8.0/10 (Unique)
+- 🔥 Top Taste!, ✅ Unique Setting
+- Price Level: $$$
 
 ### Quick Summary:
 
@@ -386,11 +399,18 @@ Create a visual comparison of restaurants in this EXACT format:
 
 Based on this, **[Restaurant 1]** seems the closest match, with **[Restaurant 2]** as a strong alternative. What do you think?"
 
-Follow this structure PRECISELY with the actual restaurant data. The middle section MUST be formatted as a Markdown table exactly as shown, with proper column alignment and spacing. Use bold for restaurant names and fit scores. Use the exact emoji indicators (⭐, ✅, ⚠️, 🔥) as shown.
+Follow this structure PRECISELY with the actual restaurant data. Use bullet points and clear formatting as shown above. Use bold for restaurant names and fit scores.
 
-If you can't create a perfect table, at minimum include:
-1. Clearly labeled restaurant sections with proper fit scores
-2. Star ratings for each dimension with proper emojis
+IMPORTANT:
+1. Use the 10-point scale for ALL dimension scores (Taste, Service, Ambiance) - display as X.X/10
+2. Always include cuisine type in parentheses after each restaurant name
+3. Include short descriptive text in parentheses after dimension scores
+4. Use emojis (✅, ⚠️, 🔥) appropriately but don't overuse them
+5. Include price level information for each restaurant
+
+If you can't create a perfect format, at minimum include:
+1. Clearly labeled restaurant sections with proper fit scores and cuisine types
+2. Ratings for each dimension using 10-point scale (X.X/10)
 3. The Quick Summary section with the key points for each restaurant
 4. A final recommendation comparing top choices
 """
@@ -415,30 +435,41 @@ Please restructure it to match this exact format:
 
 "Okay [name], I've analyzed recent feedback for top restaurants in [location] based on your preferences for [occasion]: [cuisine type], [key priorities], [vibe type], [budget range]. Here's a structured recommendation to simplify your decision:
 
-[Location] Restaurant Analysis (Based on Your Specific Needs):
+### [Location] Restaurant Analysis (Based on Your Specific Needs):
 
-[Restaurant 1 Name]          [Restaurant 2 Name]          [Restaurant 3 Name]
-Fit: [8.8]/10                Fit: [8.2]/10                Fit: [7.5]/10
+**1. [Restaurant 1 Name]** ([Cuisine Type]) - **Fit: 8.8/10**
+- Taste: 8.5/10 (Very Good)
+- Service: 9.0/10 (Excellent)
+- Ambiance: 8.5/10 (Good Chat Vibe)
+- ✅ Service, ✅ Good for Conversation
+- Price Level: $$$
 
-Taste: [4.5] ⭐              Taste: [4.4] ⭐              Taste: [4.9] ⭐
-Service: [4.6] ⭐            Service: [4.3] ⭐            Service: [4.2] ⭐
-Ambiance: [4.5] ⭐ (Good)    Ambiance: [4.3] ⭐ (Lively)  Ambiance: [4.0] ⭐ (Unique)
+**2. [Restaurant 2 Name]** ([Cuisine Type]) - **Fit: 8.2/10**
+- Taste: 8.4/10 (Good)
+- Service: 8.3/10 (Good)
+- Ambiance: 8.3/10 (Lively)
+- ✅ Lively Vibe, ✅ Good Value
+- Price Level: $$$
 
-✅ [Priority1], ✅ [Priority2]  ✅ [Priority1], ✅ [Priority2]  🔥 [Exceptional feature]
-⚠️ [Warning if applicable]     ⚠️ [Warning if applicable]     ⚠️ [Warning if applicable]
+**3. [Restaurant 3 Name]** ([Cuisine Type]) - **Fit: 7.5/10**
+- Taste: 8.9/10 (Excellent)
+- Service: 8.2/10 (Good)
+- Ambiance: 8.0/10 (Unique)
+- 🔥 Top Taste!, ✅ Unique Setting
+- Price Level: $$$
 
-Quick Summary:
+### Quick Summary:
 
-[Restaurant 1]: Strongest match, especially for [key strength]. [Key concern] is the main consideration.
-[Restaurant 2]: Good [attribute] option with solid scores. A great fit if the group enjoys the [attribute] & menu.
-[Restaurant 3]: [Attribute] is exceptional, but the [attribute] might compromise the '[desired attribute]'. Good value.
+**[Restaurant 1]**: Strongest match, especially for [key strength]. [Key concern] is the main consideration.
+**[Restaurant 2]**: Good [attribute] option with solid scores. A great fit if the group enjoys the [attribute] & menu.
+**[Restaurant 3]**: [Attribute] is exceptional, but the [attribute] might compromise the '[desired attribute]'. Good value.
 
-Based on this, [Restaurant 1] seems the closest match, with [Restaurant 2] as a strong alternative. What do you think?"
+Based on this, **[Restaurant 1]** seems the closest match, with **[Restaurant 2]** as a strong alternative. What do you think?"
 
 Original content to reformat:
 {response_text}
 
-Keep all the restaurant information, scores and details, but ONLY reformat to match the template exactly.
+Keep all the restaurant information, scores and details, but ONLY reformat to match the template exactly. Make sure to include cuisine type for each restaurant.
 """
                 enhanced_response = call_llm(enhance_prompt, model="gpt-4o") 
                 if enhanced_response:
